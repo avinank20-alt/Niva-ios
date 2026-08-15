@@ -1,0 +1,31 @@
+[package]
+name = "niva-os"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lazy_static = { version = "1.4", features = ["spin_no_std"] }
+spin = "0.9"
+x86_64 = "0.15"
+uart_16550 = "0.3"
+pic8259 = "0.10"
+pc-keyboard = "0.7"
+
+[dev-dependencies]
+
+[profile.dev]
+opt-level = 0
+
+[profile.release]
+opt-level = 3
+lto = true
+
+[build-dependencies]
+
+[lib]
+name = "niva_os"
+path = "src/lib.rs"
+
+[[bin]]
+name = "kernel"
+path = "src/main.rs"

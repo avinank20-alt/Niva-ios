@@ -1,0 +1,11 @@
+[build]
+target = "x86_64-unknown-none"
+rustflags = [
+    "-C", "link-arg=-Tlinker.ld",
+    "-C", "relocation-model=static",
+    "-C", "code-model=kernel",
+    "-C", "target-feature=-mmx,-sse,+soft-float"
+]
+
+[target.x86_64-unknown-none]
+runner = "qemu-system-x86_64 -m 1G -smp 2"
