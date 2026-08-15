@@ -1,11 +1,10 @@
 // Heap Memory Allocator
-// Implements a simple but effective heap allocator for kernel memory
+// Implements a bump allocator for initial kernel heap
 
 use crate::println;
-use core::alloc::{GlobalAlloc, Layout};
-use core::ptr::NonNull;
 
 /// Simple bump allocator for the heap
+#[derive(Debug)]
 pub struct BumpAllocator {
     heap_start: usize,
     heap_end: usize,
@@ -19,6 +18,19 @@ impl BumpAllocator {
             heap_start,
             heap_end: heap_start + heap_size,
             next_alloc: heap_start,
+        }
+    }
+
+    /// Allocate bytes from the heap (simple linear allocation)
+    pub fn allocate(&mut self, size: usize, alignment: usize) -> Option<*mut u8> {
+        // Align the next allocation address
+        let aligned = (self.next_alloc + alignment - 1) & !(alignment - 1);
+        
+        if aligned + size <= self.heap_end {
+            self.next_alloc = aligned + size;
+            Some(aligned as *mut u8)
+        } else {
+            None
         }
     }
 
@@ -36,43 +48,74 @@ impl BumpAllocator {
     pub fn remaining_bytes(&self) -> usize {
         self.heap_end - self.next_alloc
     }
-}
 
-/// Global heap allocator
-pub struct GlobalHeapAllocator;
-
-unsafe impl GlobalAlloc for GlobalHeapAllocator {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        // Placeholder - will be replaced with actual allocator
-        core::ptr::null_mut()
-    }
-
-    unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {
-        // Placeholder - will be replaced with actual allocator
+    /// Get allocation statistics
+    pub fn stats(&self) -> (usize, usize, usize) {
+        (self.allocated_bytes(), self.remaining_bytes(), self.total_bytes())
     }
 }
+
+/// Global heap allocator instance
+pub static mut GLOBAL_ALLOCATOR: Option<BumpAllocator> = None;
 
 /// Initialize the heap allocator
 pub fn init_heap() {
     println!("[*] Initializing kernel heap allocator...");
     
-    const HEAP_START: usize = 0x_4444_4444_0000;
+    const HEAP_START: usize = 0xffff_8000_0200_0000;
     const HEAP_SIZE: usize = 100 * 1024 * 1024; // 100 MB
 
     let allocator = BumpAllocator::new(HEAP_START, HEAP_SIZE);
     
+    unsafe {
+        GLOBAL_ALLOCATOR = Some(allocator);
+    }
+    
     println!(
-        "    Heap: 0x{:x} - 0x{:x} ({} MB available)",
+        "    Heap: 0x{:x} - 0x{:x}",
         HEAP_START,
-        HEAP_START + HEAP_SIZE,
+        HEAP_START + HEAP_SIZE
+    );
+    println!(
+        "    Size: {} MB available",
         HEAP_SIZE / 1024 / 1024
     );
+    println!("    Type: Bump allocator (linear, no deallocation)");
     
-    // TODO: Implement actual memory allocation:
-    // - Linked list allocator
-    // - Free list management
-    // - Fragmentation handling
-    // - Thread-safe allocation
+    // Get stats
+    unsafe {
+        if let Some(alloc) = &GLOBAL_ALLOCATOR {
+            let (allocated, remaining, total) = alloc.stats();
+            println!(
+                "    Status: {} bytes allocated, {} bytes remaining (total {} bytes)",
+                allocated, remaining, total
+            );
+        }
+    }
+}
+
+/// Allocate memory from the global heap
+#[allow(dead_code)]
+pub fn allocate(size: usize, alignment: usize) -> Option<*mut u8> {
+    unsafe {
+        if let Some(alloc) = &mut GLOBAL_ALLOCATOR {
+            alloc.allocate(size, alignment)
+        } else {
+            None
+        }
+    }
+}
+
+/// Get heap statistics
+#[allow(dead_code)]
+pub fn heap_stats() -> Option<(usize, usize, usize)> {
+    unsafe {
+        if let Some(alloc) = &GLOBAL_ALLOCATOR {
+            Some(alloc.stats())
+        } else {
+            None
+        }
+    }
 }
 
 #[cfg(test)]
@@ -81,8 +124,41 @@ mod tests {
 
     #[test]
     fn test_bump_allocator() {
-        let allocator = BumpAllocator::new(0x1000, 0x1000);
+        let mut allocator = BumpAllocator::new(0x1000, 0x1000);
         assert_eq!(allocator.allocated_bytes(), 0);
         assert_eq!(allocator.total_bytes(), 0x1000);
+        
+        let ptr = allocator.allocate(256, 8);
+        assert!(ptr.is_some());
+        assert_eq!(allocator.allocated_bytes(), 256);
+    }
+
+    #[test]
+    fn test_bump_allocator_alignment() {
+        let mut allocator = BumpAllocator::new(0x1000, 0x1000);
+        
+        // Allocate with 16-byte alignment
+        let ptr1 = allocator.allocate(8, 16);
+        assert!(ptr1.is_some());
+        
+        let addr = ptr1.unwrap() as usize;
+        assert_eq!(addr % 16, 0, "Allocation should be 16-byte aligned");
+    }
+
+    #[test]
+    fn test_bump_allocator_exhaustion() {
+        let mut allocator = BumpAllocator::new(0x1000, 256);
+        
+        // Should succeed
+        let ptr1 = allocator.allocate(128, 4);
+        assert!(ptr1.is_some());
+        
+        // Should also succeed
+        let ptr2 = allocator.allocate(128, 4);
+        assert!(ptr2.is_some());
+        
+        // Should fail (not enough space)
+        let ptr3 = allocator.allocate(256, 4);
+        assert!(ptr3.is_none());
     }
 }
