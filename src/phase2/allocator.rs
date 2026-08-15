@@ -1,9 +1,6 @@
-// Heap Memory Allocator
-// Implements a bump allocator for initial kernel heap
+// Heap Memory Allocator - Bump allocator for kernel heap
 
 use crate::println;
-
-/// Simple bump allocator for the heap
 #[derive(Debug)]
 pub struct BumpAllocator {
     heap_start: usize,
@@ -55,7 +52,7 @@ impl BumpAllocator {
     }
 }
 
-/// Global heap allocator instance
+/// Global heap allocator instance (bump allocator used for now)
 pub static mut GLOBAL_ALLOCATOR: Option<BumpAllocator> = None;
 
 /// Initialize the heap allocator
@@ -81,6 +78,7 @@ pub fn init_heap() {
         HEAP_SIZE / 1024 / 1024
     );
     println!("    Type: Bump allocator (linear, no deallocation)");
+    println!("    Note: Linked list allocator framework ready for Phase 2b");
     
     // Get stats
     unsafe {
@@ -104,6 +102,14 @@ pub fn allocate(size: usize, alignment: usize) -> Option<*mut u8> {
             None
         }
     }
+}
+
+/// Deallocate memory from the heap
+#[allow(dead_code)]
+pub unsafe fn deallocate(ptr: *mut u8, size: usize) {
+    // Bump allocator doesn't support deallocation
+    // This would be implemented in linked list allocator
+    let _ = (ptr, size);
 }
 
 /// Get heap statistics
@@ -160,5 +166,28 @@ mod tests {
         // Should fail (not enough space)
         let ptr3 = allocator.allocate(256, 4);
         assert!(ptr3.is_none());
+    }
+
+    #[test]
+    fn test_linked_list_allocator() {
+        let mut allocator = LinkedListAllocator::new();
+        assert!(!allocator.is_initialized());
+        
+        unsafe {
+            allocator.init(0x10000, 0x10000);
+        }
+        assert!(allocator.is_initialized());
+    }
+
+    #[test]
+    fn test_linked_list_allocator_stats() {
+        let mut allocator = LinkedListAllocator::new();
+        unsafe {
+            allocator.init(0x10000, 0x1000);
+        }
+        
+        let (allocated, remaining, total) = allocator.stats();
+        assert_eq!(total, 0x1000);
+        assert_eq!(allocated, 0);
     }
 }
