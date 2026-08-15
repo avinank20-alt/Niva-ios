@@ -9,6 +9,7 @@ use niva_os::arch::serial;
 use niva_os::drivers::pic;
 use niva_os::kernel::gdt;
 use niva_os::kernel::idt;
+use niva_os::phase2;
 
 /// Kernel main entry point (called from bootloader in 64-bit mode)
 #[no_mangle]
@@ -51,13 +52,18 @@ pub extern "C" fn kernel_main() -> ! {
     println!();
     
     // Main kernel loop
-    println!("NIVA OS is ready. Initializing desktop environment...");
+    println!("NIVA OS is ready. Initializing Phase 2: Memory & Graphics...");
     println!();
     
-    // TODO: Initialize framebuffer and graphics
-    // TODO: Initialize file system
+    // Initialize Phase 2 (Memory & Graphics)
+    phase2::init();
+    
+    println!();
+    println!("Initializing desktop environment...");
+    
     // TODO: Load desktop environment
     // TODO: Start application launcher
+    // TODO: Display login screen
     
     // Idle loop
     loop {

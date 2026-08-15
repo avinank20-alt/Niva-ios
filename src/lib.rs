@@ -15,6 +15,7 @@ pub mod memory;
 pub mod gui;
 pub mod fs;
 pub mod sys;
+pub mod phase2;
 
 // Panic handler for bare metal
 #[panic_handler]
